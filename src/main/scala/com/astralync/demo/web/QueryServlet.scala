@@ -1,6 +1,8 @@
 package com.astralync.demo.web
 
+import java.io.{BufferedWriter, FileWriter, BufferedReader, FileReader}
 import java.net.{URLEncoder, InetAddress}
+import java.util.Date
 import javax.servlet.http.{HttpServletResponse, HttpServletRequest}
 import javax.servlet.{ServletConfig, ServletRequest, ServletResponse}
 
@@ -63,7 +65,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
       ("michelewells Foursquare", "dallas arlington", "local[*]", "hdfs://localhost:8020", "8", "1", true, "/shared/wfweb/src/main/webapp/results/queryResults.csv")
     }
     else {
-      ("wells fargo chase bank money cash", "dallas arlington", "spark://192.168.15.43:7077", "hdfs://i386:9000",
+      ("wells fargo chase bank money cash", "dallas arlington", "spark://i386:7077", "hdfs://i386:9000",
         "56", "1", true,"/home/stephen/wfweb/src/main/webapp/results/queryResults.csv")
     }
     val runQuery = s"${localhostServer(req)}/runQuery"
@@ -215,6 +217,8 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
       val content = s"""$retMapJson
           """.stripMargin
       val result = Template.page(resp, title, content)
+      writeFile(s"/tmp/runQuery.${new Date().toString.substring(10)}.html",result)
+      result
     } catch {
       case e: Exception =>
         System.err.println(s"got exception ${e.getMessage}")
@@ -222,7 +226,12 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
     }
 
   }
-
+  def writeFile(fname: String, text: String) = {
+    val bw = new BufferedWriter(new FileWriter(fname))
+    bw.write(text)
+    bw.flush
+    bw.close
+  }
 
 }
 
@@ -299,5 +308,6 @@ object Template {
     val pw = resp.getWriter
     pw.write(out)
     pw.flush
+    out
   }
 }
