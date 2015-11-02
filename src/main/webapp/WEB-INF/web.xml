@@ -6,7 +6,7 @@
 
 <servlet>
   <servlet-name>query</servlet-name>
-  <servlet-class>com.astralync.demo.fe.QueryServlet</servlet-class>
+  <servlet-class>com.astralync.demo.web.QueryServlet</servlet-class>
 </servlet>
  <servlet-mapping>
   <servlet-name>query</servlet-name>

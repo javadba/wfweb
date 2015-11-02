@@ -1,4 +1,4 @@
-package com.astralync.demo.spark.web
+package com.astralync.demo.web
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
