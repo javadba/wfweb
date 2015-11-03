@@ -61,16 +61,16 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
     val gval = DtNames
     val sortBy = headers.map(h => s"""<option value="$h">$h</option>""").mkString("\n")
     //    println(s"sortBy=$sortBy")
-    val (posKeywords, negKeywords, master, nameNode, nparts, nloops, cacheEnabled,exportFile) = if (InetAddress.getLocalHost.getHostName.contains("mellyrn")) {
-      ("michelewells Foursquare", "dallas arlington", "local[*]", "hdfs://localhost:8020", "8", "1", true, "/shared/wfweb/src/main/webapp/results/queryResults.csv")
+    val (inputFile, posKeywords, negKeywords, master, nameNode, nparts, nloops, cacheEnabled,exportFile) = if (InetAddress.getLocalHost.getHostName.contains("mellyrn")) {
+      ("/user/steve/data500m", "michelewells Foursquare", " ", "local[*]", "hdfs://localhost:8020", "8", "1", true, "/shared/wfweb/src/main/webapp/results/queryResults.csv")
     }
     else {
-      ("wells fargo chase bank money cash", "dallas arlington", "spark://i386:7077", "hdfs://i386:9000",
+      ("/user/stephen/data5gb","wells fargo chase bank money cash", " ", "spark://i386:7077", "hdfs://i386:9000",
         "56", "1", true,"/home/stephen/wfweb/src/main/webapp/results/queryResults.csv")
     }
     val runQuery = s"${localhostServer(req)}/runQuery"
     val ret =
-      (<table border="0">
+      <table border="0">
         <tr>
           <td width="60%">
             <table border="0">
@@ -127,7 +127,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
                 </tr>
                 <tr>
                   <td colspan="2">Input file:
-                    <input type="text" size="50" name="inputFile" value="/user/stephen/data5gb"/>
+                    <input type="text" size="50" name="inputFile" value="$inputFile"/>
                   </td>
                 </tr>
                 <tr>
@@ -154,9 +154,9 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
                   </td>
                 </tr>
                 <tr>
-                  <td colspan="2" align="center">
+                  <td colspan="2" align="left">
                     <font size="+1">
-                      <input type='submit' style="font-size:18px" value="Run Query"/>
+                      <input type='submit' style="font-size:18px" value="Search"/>
                     </font>
                   </td>
                 </tr>
@@ -173,8 +173,8 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
           <td width="40%"/>
         </tr>
       </table>
-        ).mkString("\n")
-    val omap = Seq(("$sparkMaster", master), ("$nameNode", nameNode), ("$nparts", nparts), ("$nloops", nloops),
+        .mkString("\n")
+    val omap = Seq(("$inputFile", inputFile), ("$sparkMaster", master), ("$nameNode", nameNode), ("$nparts", nparts), ("$nloops", nloops),
       ("checked='$cacheEnabled'", if (cacheEnabled) """checked="checked"""" else ""),
       ("$exportFile", exportFile)).toMap
     val rret = omap.keys.foldLeft(ret) { case (oret, key) =>
@@ -182,6 +182,10 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
     }
     Template.page(resp, title, rret)
 
+  }
+
+  def round(d: Double, places: Int) = {
+    (d *math.pow(10,places)).toInt /math.pow(10,places)
   }
 
   def runQuery(req: HttpServletRequest, resp: HttpServletResponse) = {
@@ -197,8 +201,6 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
       val nloops = params("nloops").toInt
       val groupByFields = params("grouping").replace(" ", ",")
       val minCount = params("minCount").toInt
-      //      val posRegex = JsonPosRegex
-      //      val negRegex = JsonNegRegex
       val posKeyWords = params("posKeywords").trim.replace(" ", ",")
       val negKeyWords = params("negKeywords").trim.replace(" ", ",")
       println(s"negKeyWords=[$negKeyWords]")
@@ -210,14 +212,31 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
       println(s"negkeys=$negkeys")
       import collection.mutable
       val rparams = mutable.Map[String, String](params.toSeq: _*)
+//      rparams.update("negKeywords", negKy
       val url = RegexUrl
-      val retMapJson = get(req, url, Map(rparams.toSeq: _*))
-      println(s"retMapJson=$retMapJson")
+      val backendResult = get(req, url, Map(rparams.toSeq: _*))
+      println(s"retMapJson=$backendResult")
       val title = "Keywords Query Results:"
-      val content = s"""$retMapJson
-          """.stripMargin
-      val result = Template.page(resp, title, content)
-      writeFile(s"/tmp/runQuery.${new Date().toString.substring(10)}.html",result)
+      val searchedRegex = """(?i).*Search time:[^\d]+([\d]+.[\d]+).*Searched records: ([\d]+.[\d]+).*""".r
+//      val searchedRegex = """.*Search time: ([\d]+.[\d]+).*""".r
+//      val tsearch = searchedRegex findFirstIn retMapJson
+//      val searchedRegex2 = """.*Searched records: ([\d]+.[\d]+).*""".r
+//      val nsearched = searchedRegex2 findFirstIn retMapJson
+      val elidedOutput = backendResult.replace("\n", "")
+      val out = if (searchedRegex.findFirstIn(elidedOutput).isEmpty) {
+        backendResult
+      } else {
+        val searchedRegex(tsearch, nsearched) = elidedOutput
+        val dbSearch = round(nsearched.toDouble / 6e6, 2)
+        val searchRatio = round(dbSearch / tsearch.toDouble, 2)
+        val content = s"""<p><b>DB Query Time: would be <font color="RED">$dbSearch</font></p>
+                          <p><b>Ratio of DB to Spark Query Time: <font color="RED">$searchRatio</font></p>
+                    $backendResult
+            """.stripMargin
+        content
+      }
+      val result = Template.page(resp, title, out)
+      writeFile(s"/tmp/runQuery.${new Date().toString.substring(10)}.html", result)
       result
     } catch {
       case e: Exception =>
@@ -239,7 +258,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
 object Template {
 
   def page(resp: HttpServletResponse, title: String, content: String, url: String => String = identity _, head: Seq[Node] = Nil, scripts: Seq[String] = Seq.empty, defaultScripts: Seq[String] = Seq("js/jquery.min.js", "js/bootstrap.min.js")) = {
-    val out = (<html lang="en">
+    val out = <html lang="en">
       <head>
         <link rel="stylesheet" href="css/shadesOfBlue.css"/>
         <title>
@@ -304,7 +323,7 @@ object Template {
 
       </body>
 
-    </html>).toString.replace("$title", title).replace("$content", content)
+    </html>.toString.replace("$title", title).replace("$content", content)
     val pw = resp.getWriter
     pw.write(out)
     pw.flush
