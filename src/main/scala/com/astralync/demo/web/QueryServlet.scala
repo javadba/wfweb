@@ -79,7 +79,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
                 <tr>
                   <td>Included Keywords:
                     <p/>
-                    <textarea cols="50" rows="3" name="posKeywords">{posKeywords}</textarea>
+                    <textarea cols="100" rows="3" name="posKeywords">{posKeywords}</textarea>
                   </td>
                   <td>
                     <p/> <input type="radio" name="posKeywordsAndOr" value="and">AND</input>
@@ -233,7 +233,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
         },2)
         // ttoround(nsearched.toDouble / 6e6, 2)
         val searchRatio = round(dbSearch / (ttotal), 2)
-        val content = s"""<p><b>DB Query Time: would be <font color="RED">$dbSearch</font></p>
+        val content = s"""<p><b>DB Query Time: would be <font color="RED">$dbSearch</font> seconds.</p>
                           <p><b>Astralync Search is <font color="RED">$searchRatio</font> times faster.</p><p/>
                     $backendResult
             """.stripMargin
