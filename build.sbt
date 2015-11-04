@@ -10,7 +10,7 @@ enablePlugins(JettyPlugin)
 containerPort := 9090
 
 containerForkOptions := new ForkOptions(runJVMOptions = Seq("-Dfoo=bar"))
-//javaOptions in Jetty ++= Seq(
-//  "-Xdebug",
-//  "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
-//)
+javaOptions in Jetty ++= Seq(
+  "-Xdebug",
+  "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
+)

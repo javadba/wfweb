@@ -61,12 +61,13 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
     val gval = DtNames
     val sortBy = headers.map(h => s"""<option value="$h">$h</option>""").mkString("\n")
     //    println(s"sortBy=$sortBy")
-    val (inputFile, posKeywords, negKeywords, master, nameNode, nparts, nloops, cacheEnabled,exportFile) = if (InetAddress.getLocalHost.getHostName.contains("mellyrn")) {
+    val isLaptop = InetAddress.getLocalHost.getHostName.contains("mellyrn")
+    val (inputFile, posKeywords, negKeywords, master, nameNode, nparts, nloops, cacheEnabled, exportFile) = if (isLaptop) {
       ("/user/steve/data500m", "michelewells Foursquare", " ", "local[*]", "hdfs://localhost:8020", "8", "1", true, "/shared/wfweb/src/main/webapp/results/queryResults.csv")
     }
     else {
-      ("/user/stephen/data5gb","wells fargo chase bank money cash", " ", "spark://i386:7077", "hdfs://i386:9000",
-        "56", "1", true,"/home/stephen/wfweb/src/main/webapp/results/queryResults.csv")
+      ("/user/stephen/data5gb", "wells fargo chase bank money cash", " ", "spark://i386:7077", "hdfs://i386:9000",
+        "40", "1", true, "/home/stephen/wfweb/src/main/webapp/results/queryResults.csv")
     }
     val runQuery = s"${localhostServer(req)}/runQuery"
     val ret =
@@ -161,13 +162,6 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
                   </td>
                 </tr>
               </form>
-              <!-- <tr>
-            <td colspan="2">All fields:
-              <font size="-1">
-                {headers.mkString(", ")}
-              </font>
-            </td>
-          </tr> -->
             </table>
           </td>
           <td width="40%"/>
@@ -185,7 +179,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
   }
 
   def round(d: Double, places: Int) = {
-    (d *math.pow(10,places)).toInt /math.pow(10,places)
+    (d * math.pow(10, places)).toInt / math.pow(10, places)
   }
 
   def runQuery(req: HttpServletRequest, resp: HttpServletResponse) = {
@@ -212,23 +206,23 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
       println(s"negkeys=$negkeys")
       import collection.mutable
       val rparams = mutable.Map[String, String](params.toSeq: _*)
-//      rparams.update("negKeywords", negKy
+      //      rparams.update("negKeywords", negKy
       val url = RegexUrl
       val backendResult = get(req, url, Map(rparams.toSeq: _*))
       println(s"retMapJson=$backendResult")
       val title = "Keywords Query Results:"
-      val searchedRegex = """(?i).*Search time:[^\d]+([\d]+.[\d]+).*Searched records: ([\d]+.[\d]+).*""".r
-//      val searchedRegex = """.*Search time: ([\d]+.[\d]+).*""".r
-//      val tsearch = searchedRegex findFirstIn retMapJson
-//      val searchedRegex2 = """.*Searched records: ([\d]+.[\d]+).*""".r
-//      val nsearched = searchedRegex2 findFirstIn retMapJson
+      val searchedRegex = """(?i).*Search and Save time:[^\d]+([\d]+.[\d]+).*Aggregation time:[^\d]+([\d]+.[\d]+).*Searched records:[^\d]+([\d]+).*""".r
+      //      val searchedRegex = """.*Search time: ([\d]+.[\d]+).*""".r
+      //      val tsearch = searchedRegex findFirstIn retMapJson
+      //      val searchedRegex2 = """.*Searched records: ([\d]+.[\d]+).*""".r
+      //      val nsearched = searchedRegex2 findFirstIn retMapJson
       val elidedOutput = backendResult.replace("\n", "")
       val out = if (searchedRegex.findFirstIn(elidedOutput).isEmpty) {
         backendResult
       } else {
-        val searchedRegex(tsearch, nsearched) = elidedOutput
+        val searchedRegex(tsearch, tagg, nsearched) = elidedOutput
         val dbSearch = round(nsearched.toDouble / 6e6, 2)
-        val searchRatio = round(dbSearch / tsearch.toDouble, 2)
+        val searchRatio = round(dbSearch / (tsearch.toDouble + tagg.toDouble), 2)
         val content = s"""<p><b>DB Query Time: would be <font color="RED">$dbSearch</font></p>
                           <p><b>Ratio of DB to Spark Query Time: <font color="RED">$searchRatio</font></p>
                     $backendResult
@@ -245,6 +239,7 @@ class QueryServlet extends javax.servlet.http.HttpServlet {
     }
 
   }
+
   def writeFile(fname: String, text: String) = {
     val bw = new BufferedWriter(new FileWriter(fname))
     bw.write(text)
